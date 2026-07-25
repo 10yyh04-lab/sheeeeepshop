@@ -88,7 +88,7 @@
       transform: scale(0.92);
     }
 
-    /* 3. 選單頁面 */
+    /* 選單頁面 */
     .frame-row {
       position: absolute;
       top: 50%;
@@ -113,7 +113,7 @@
     .btn-album { position: absolute; top: 25%; left: 8%; width: 38%; z-index: 20; }
     .btn-camera { position: absolute; top: 25%; right: 8%; width: 38%; z-index: 20; }
 
-    /* 相機畫面：置於相框圖層（z-index:10）下方 */
+    /* 相機畫面：襯在相框下方 */
     #webcam-video {
       position: absolute;
       top: 0;
@@ -137,7 +137,7 @@
       z-index: 40;
     }
 
-    /* 9. 最終頁面 Thanks：可滾動、高解析展示 */
+    /* 最後一頁：可直向滑動、完整顯示長條海報 */
     #screen-thanks {
       overflow-y: auto;
       background: #121212;
@@ -187,20 +187,20 @@
 <body>
 
 <div id="app-container">
-  <!-- 閃光燈疊加層 -->
+  <!-- 閃光燈 -->
   <img id="flashlight" class="overlay-img" style="display:none;" src="" alt="flash">
 
-  <!-- 1. 開場畫面 -->
+  <!-- 1. 開場 -->
   <div id="screen-intro" class="screen active">
     <img id="hello-img" class="clickable full-cover" src="" style="display: none;" alt="hello">
   </div>
 
-  <!-- 2. Choose One 畫面 -->
+  <!-- 2. Choose One -->
   <div id="screen-choose" class="screen">
     <img class="clickable full-cover" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Choose_one.png" id="btn-to-menu" alt="choose_one">
   </div>
 
-  <!-- 3. 選單畫面 -->
+  <!-- 3. 選單 -->
   <div id="screen-menu" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png');">
     <div class="frame-row">
       <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame1.png" onclick="selectFrame(1)" alt="frame1">
@@ -211,7 +211,7 @@
     </div>
   </div>
 
-  <!-- 4. 確認樣式畫面 -->
+  <!-- 4. 確認樣式 -->
   <div id="screen-confirm" class="screen">
     <img class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png" alt="menu bg">
     <img id="confirm-overlay-img" class="bg-layer" src="" alt="confirm frame">
@@ -225,22 +225,22 @@
     <img class="btn-camera clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Camera_open.png" onclick="startCameraMode()" alt="拍照">
   </div>
 
-  <!-- 6. 拍照畫面（視訊在底層，相框在頂層） -->
+  <!-- 6. 拍照畫面 -->
   <div id="screen-shot" class="screen">
     <video id="webcam-video" autoplay playsinline muted></video>
     <img id="shot-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot">
     <div id="countdown-text"></div>
   </div>
 
-  <!-- 7. 拍照 OK 畫面 -->
+  <!-- 7. OK 畫面 -->
   <div id="screen-ok" class="screen">
     <img id="ok-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok">
   </div>
 
-  <!-- 8. Loading 畫面 -->
+  <!-- 8. Loading -->
   <div id="screen-loading" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/loading.png');"></div>
 
-  <!-- 9. 完成與下載畫面（乾淨無雜訊下載） -->
+  <!-- 9. 完成下載頁面 -->
   <div id="screen-thanks" class="screen">
     <div class="thanks-wrapper">
       <img id="final-canvas-preview" src="" alt="Photobooth Final Output">
@@ -295,15 +295,23 @@
     ]
   };
 
-  /* 
-     【精密修正】600x1800 相框孔洞對齊座標（對應相框 4 個白色區域，絕對避開怪獸圖案）
-  */
-  const SLOT_CONFIG = [
-    { x: 96, y: 195, w: 408, h: 220 }, // 第一格
-    { x: 96, y: 445, w: 408, h: 220 }, // 第二格
-    { x: 96, y: 695, w: 408, h: 220 }, // 第三格
-    { x: 96, y: 945, w: 408, h: 220 }  // 第四格
-  ];
+  /* 根據選擇的相框，分配精準的孔洞位置 */
+  const FRAME_CONFIGS = {
+    // 預設 (1, 2 號框 - 棕色甜點)
+    default: [
+      { x: 75, y: 220, w: 450, h: 235 },
+      { x: 75, y: 495, w: 450, h: 235 },
+      { x: 75, y: 770, w: 450, h: 235 },
+      { x: 75, y: 1045, w: 450, h: 235 }
+    ],
+    // 藍色怪獸框 (3, 4 號框)
+    monster: [
+      { x: 96, y: 195, w: 408, h: 220 },
+      { x: 96, y: 445, w: 408, h: 220 },
+      { x: 96, y: 695, w: 408, h: 220 },
+      { x: 96, y: 945, w: 408, h: 220 }
+    ]
+  };
 
   let currentHelloStep = 1;
   let selectedFrameIndex = 1;
@@ -377,7 +385,6 @@
   function goToModeSelect() { showScreen('screen-mode'); }
   function triggerPhotoUpload() { document.getElementById('file-input').click(); }
 
-  /* 上傳相片 */
   function handleFileSelect(event) {
     const files = event.target.files;
     if (!files || files.length < 4) {
@@ -399,7 +406,6 @@
     }
   }
 
-  /* 相機模式啟動 */
   async function startCameraMode() {
     showScreen('screen-shot');
     userImages = [];
@@ -421,7 +427,6 @@
     }
   }
 
-  /* 4 連拍循環 */
   function runShotSequence() {
     if (currentShotCount >= 4) {
       if (cameraStream) {
@@ -446,7 +451,6 @@
         clearInterval(timer);
         countEl.innerText = "";
 
-        // 拍照截圖
         captureCurrentFrame();
 
         document.getElementById('ok-overlay').src = ASSETS.oks[currentShotCount];
@@ -467,7 +471,6 @@
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
 
-    // 鏡像翻轉繪製
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -477,7 +480,6 @@
     userImages.push(img);
   }
 
-  /* 最終合成邏輯：乾淨相框層 + 4 張精準填滿照片 */
   function processAndGenerateFinal() {
     showScreen('screen-loading');
 
@@ -486,6 +488,11 @@
 
     canvas.width = 600;
     canvas.height = 1800;
+
+    // 根據相框款式選取孔洞座標
+    const slots = (selectedFrameIndex === 3 || selectedFrameIndex === 4) 
+                  ? FRAME_CONFIGS.monster 
+                  : FRAME_CONFIGS.default;
 
     function loadImage(src) {
       return new Promise((resolve) => {
@@ -497,14 +504,14 @@
     }
 
     loadImage(ASSETS.frames[selectedFrameIndex]).then((frameImg) => {
-      // 1. 底色填滿純白（不渲染帶有按鈕圖案的背景檔）
+      // 1. 純白底色 (不畫原本帶有圖案的背景檔)
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, 600, 1800);
 
-      // 2. 將 4 張照片微幅放大 (+4px bleed) 畫進對應孔洞後方
+      // 2. 畫 4 張照片
       userImages.forEach((img, i) => {
-        if (i < 4 && img && SLOT_CONFIG[i]) {
-          const slot = SLOT_CONFIG[i];
+        if (i < 4 && img && slots[i]) {
+          const slot = slots[i];
 
           const dx = slot.x - 2;
           const dy = slot.y - 2;
@@ -529,7 +536,7 @@
         }
       });
 
-      // 3. 疊加相框 PNG 圖層在最上層
+      // 3. 疊加相框 PNG
       if (frameImg) {
         ctx.drawImage(frameImg, 0, 0, 600, 1800);
       }
