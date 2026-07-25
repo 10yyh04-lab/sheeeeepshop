@@ -15,7 +15,7 @@
     body, html {
       width: 100%;
       height: 100%;
-      background-color: #1a1a1a;
+      background-color: #121212;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex;
       justify-content: center;
@@ -27,11 +27,11 @@
       position: relative;
       width: 100vw;
       height: 100vh;
-      max-width: 540px;
-      max-height: 960px;
+      max-width: 480px;
+      max-height: 854px;
       background: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png') no-repeat center center / cover;
       overflow: hidden;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     }
 
     .screen {
@@ -97,14 +97,14 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 8px;
-      width: 90%;
+      gap: 6px;
+      width: 92%;
     }
 
     .frame-item {
       width: 18%;
       height: auto;
-      transform: scale(0.75);
+      transform: scale(0.85);
     }
 
     /* 按鈕定位 */
@@ -113,7 +113,7 @@
     .btn-album { position: absolute; top: 25%; left: 8%; width: 38%; z-index: 20; }
     .btn-camera { position: absolute; top: 25%; right: 8%; width: 38%; z-index: 20; }
 
-    /* 拍照畫面：相機影片襯在 Shot 圖片後面 (z-index: 1) */
+    /* 拍照畫面：相機影片襯在預覽框層後面 */
     #shot-camera-video {
       position: absolute;
       top: 0;
@@ -125,7 +125,6 @@
       z-index: 1;
     }
 
-    /* Shot Overlay 置頂在相機前面 (z-index: 5) */
     #shot-overlay {
       position: absolute;
       top: 0;
@@ -139,12 +138,12 @@
 
     #countdown-text {
       position: absolute;
-      top: 45%;
+      top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-size: 110px;
+      font-size: 120px;
       color: #ffffff;
-      text-shadow: 0 0 20px rgba(0,0,0,0.9);
+      text-shadow: 0 0 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.6);
       font-weight: 900;
       z-index: 20;
     }
@@ -156,6 +155,7 @@
       display: none;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       padding: 20px 0;
     }
 
@@ -166,7 +166,6 @@
     .thanks-wrapper {
       position: relative;
       width: 85%;
-      max-width: 400px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -174,9 +173,10 @@
 
     #final-canvas-preview {
       width: 100%;
-      height: auto;
-      border-radius: 6px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+      max-height: 70vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
     }
 
     .action-buttons {
@@ -185,11 +185,10 @@
       justify-content: space-around;
       align-items: center;
       margin-top: 20px;
-      padding-bottom: 20px;
     }
 
     .action-btn {
-      width: 42%;
+      width: 40%;
       cursor: pointer;
     }
 
@@ -237,14 +236,14 @@
     <img class="btn-camera clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Camera_open.png" onclick="startCameraMode()" alt="拍照">
   </div>
 
-  <!-- 6. 拍照畫面（Shot1~Shot4 蓋在相機前方） -->
+  <!-- 6. 拍照畫面 -->
   <div id="screen-shot" class="screen">
     <video id="shot-camera-video" autoplay playsinline muted></video>
     <img id="shot-overlay" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot overlay">
     <div id="countdown-text"></div>
   </div>
 
-  <!-- 7. OK 畫面（Ok1~Ok4） -->
+  <!-- 7. OK 畫面 -->
   <div id="screen-ok" class="screen">
     <img id="ok-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok">
   </div>
@@ -307,12 +306,17 @@
     ]
   };
 
-  /* 精準對齊 600x1800 畫布上的 4 個透明鏤空視窗 (寬 560px, 高 350px，邊框無縫外擴 +10px) */
-  const MESH_SLOTS = [
-    { x: 20, y: 70,  w: 560, h: 350 },
-    { x: 20, y: 470, w: 560, h: 350 },
-    { x: 20, y: 870, w: 560, h: 350 },
-    { x: 20, y: 1270, w: 560, h: 350 }
+  /* 
+     精準對齊比例：
+     根據標準 4 格條狀拍貼機相框，4 個孔洞在整張圖上的相對位置 (%):
+     X: 13.5% (寬度 73%)
+     Y 分別位於: 12%, 29.5%, 47%, 64.5% (高度約 15.5%)
+  */
+  const SLOT_PERCENT = [
+    { x: 0.135, y: 0.120, w: 0.73, h: 0.155 },
+    { x: 0.135, y: 0.295, w: 0.73, h: 0.155 },
+    { x: 0.135, y: 0.470, w: 0.73, h: 0.155 },
+    { x: 0.135, y: 0.645, w: 0.73, h: 0.155 }
   ];
 
   let currentHelloStep = 1;
@@ -341,7 +345,7 @@
     if (helloImg) {
       helloImg.src = ASSETS.hello[0];
       helloImg.style.display = 'none';
-      setTimeout(() => { helloImg.style.display = 'block'; }, 600);
+      setTimeout(() => { helloImg.style.display = 'block'; }, 500);
 
       helloImg.onclick = () => {
         if (currentHelloStep < 3) {
@@ -374,7 +378,7 @@
         flashEl.style.display = 'none';
         if (callback) callback();
       }
-    }, 280);
+    }, 250);
   }
 
   function selectFrame(index) {
@@ -409,7 +413,7 @@
     }
   }
 
-  /* 相機模式流程 */
+  /* 相機模式 */
   async function startCameraMode() {
     userImages = [];
     currentShotCount = 0;
@@ -425,12 +429,12 @@
 
       runShotSequence();
     } catch (err) {
-      alert("無法取得相機權限！");
+      alert("無法取得相機權限，請確認瀏覽器相機權限已開啟！");
       console.error(err);
     }
   }
 
-  /* 循環：Shot1 -> 拍照 -> Ok1 -> Shot2 -> 拍照 -> Ok2... 重複 4 次 */
+  /* 循環 Shot1 -> 拍照 -> Ok1 -> Shot2 ... */
   function runShotSequence() {
     if (currentShotCount >= 4) {
       if (cameraStream) {
@@ -440,7 +444,6 @@
       return;
     }
 
-    // 1. 顯示 Shot 畫面 (Shot1, Shot2, Shot3, Shot4)
     showScreen('screen-shot');
     document.getElementById('shot-overlay').src = ASSETS.shots[currentShotCount];
 
@@ -456,22 +459,20 @@
         clearInterval(timer);
         countEl.innerText = "";
 
-        // 拍照截圖
         captureCurrentFrame();
 
-        // 2. 顯示 OK 畫面 (Ok1, Ok2, Ok3, Ok4)
         document.getElementById('ok-overlay').src = ASSETS.oks[currentShotCount];
         showScreen('screen-ok');
 
         setTimeout(() => {
           currentShotCount++;
-          runShotSequence(); // 跳至下一張
+          runShotSequence();
         }, 1200);
       }
     }, 1000);
   }
 
-  /* 擷取鏡頭當前影像 */
+  /* 擷取鏡頭 */
   function captureCurrentFrame() {
     const video = document.getElementById('shot-camera-video');
     const canvas = document.createElement('canvas');
@@ -479,7 +480,6 @@
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
 
-    // 水平鏡像
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -489,15 +489,12 @@
     userImages.push(img);
   }
 
-  /* 合成海報：相片襯底 + 相框蓋頂 */
+  /* 合成海報 */
   function processAndGenerateFinal() {
     showScreen('screen-loading');
 
     const canvas = document.getElementById('hidden-canvas');
     const ctx = canvas.getContext('2d');
-
-    canvas.width = 600;
-    canvas.height = 1800;
 
     function loadImage(src) {
       return new Promise((resolve) => {
@@ -509,19 +506,32 @@
     }
 
     loadImage(ASSETS.frames[selectedFrameIndex]).then((frameImg) => {
+      if (!frameImg) {
+        alert("相框圖載入失敗");
+        return;
+      }
+
+      // 以相框原圖尺寸建立 Canvas，保證 100% 不變形
+      canvas.width = frameImg.width;
+      canvas.height = frameImg.height;
+
+      const CW = canvas.width;
+      const CH = canvas.height;
+
       // 1. 純白底色
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, 600, 1800);
+      ctx.fillRect(0, 0, CW, CH);
 
-      // 2. 將 4 張照片 Cover 填滿進 560x350 鏤空區域 (微加 10px bleed 避免縫隙)
+      // 2. 渲染 4 張相片至對應視窗
       userImages.forEach((img, i) => {
-        if (i < 4 && img && MESH_SLOTS[i]) {
-          const slot = MESH_SLOTS[i];
+        if (i < 4 && img && SLOT_PERCENT[i]) {
+          const slot = SLOT_PERCENT[i];
 
-          const dx = slot.x - 5;
-          const dy = slot.y - 5;
-          const dw = slot.w + 10;
-          const dh = slot.h + 10;
+          // 加上 +2% Bleed 外擴邊界，防止白縫
+          const dx = (slot.x - 0.01) * CW;
+          const dy = (slot.y - 0.01) * CH;
+          const dw = (slot.w + 0.02) * CW;
+          const dh = (slot.h + 0.02) * CH;
 
           const targetRatio = dw / dh;
           let sw = img.width;
@@ -541,16 +551,14 @@
         }
       });
 
-      // 3. 最上層蓋上 selectedFrame 的透明相框
-      if (frameImg) {
-        ctx.drawImage(frameImg, 0, 0, 600, 1800);
-      }
+      // 3. 最上層蓋上相框
+      ctx.drawImage(frameImg, 0, 0, CW, CH);
 
       setTimeout(() => {
         const finalUrl = canvas.toDataURL('image/png');
         document.getElementById('final-canvas-preview').src = finalUrl;
         showScreen('screen-thanks');
-      }, 500);
+      }, 400);
     });
   }
 
