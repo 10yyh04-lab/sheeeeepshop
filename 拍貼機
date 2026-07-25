@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拍貼機 Photobooth</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #1a1a1a;
+      font-family: sans-serif;
+    }
+
+    #app-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      max-width: 540px;
+      max-height: 960px;
+      background: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png') no-repeat center center / cover;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    #app-container.bg-mode {
+      background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png') !important;
+    }
+
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .bg-cover {
+      background-size: cover;
+      background-position: center;
+    }
+
+    .full-cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .bg-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .overlay-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .clickable {
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+    .clickable:active {
+      transform: scale(0.92);
+    }
+
+    .frame-row {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      width: 90%;
+    }
+
+    .frame-item {
+      width: 18%;
+      height: auto;
+      transform: scale(0.75);
+    }
+
+    /* Confirm 畫面按鈕定位 */
+    .btn-no {
+      position: absolute;
+      top: 5%;
+      left: 6%;
+      width: 20%;
+      z-index: 10;
+    }
+
+    .btn-yes {
+      position: absolute;
+      bottom: 3%;
+      left: 36%;
+      width: 15%;
+      z-index: 10;
+    }
+
+    /* Mode 畫面按鈕定位 */
+    .btn-album {
+      position: absolute;
+      top: 25%;
+      left: 8%;
+      width: 38%;
+      z-index: 10;
+    }
+
+    .btn-camera {
+      position: absolute;
+      top: 25%;
+      right: 8%;
+      width: 38%;
+      z-index: 10;
+    }
+
+    /* 相機視訊畫面（配合相框鏤空位置進行精準定位） */
+    #webcam-video, #webcam-video-ok {
+      position: absolute;
+      top: 14.5%;
+      left: 11.5%;
+      width: 77%;
+      height: 70.8%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      z-index: 1;
+    }
+
+    #countdown-text {
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 80px;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(0,0,0,0.8);
+      font-weight: bold;
+      z-index: 10;
+    }
+
+    /* Thanks 畫面：呈現 600x1800 完整海報圖 */
+    #thanks-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #final-canvas-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .btn-again-hotspot {
+      position: absolute;
+      bottom: 5%;
+      left: 10%;
+      width: 35%;
+      height: 12%;
+      cursor: pointer;
+      z-index: 30;
+    }
+
+    .btn-download-hotspot {
+      position: absolute;
+      bottom: 5%;
+      right: 10%;
+      width: 35%;
+      height: 12%;
+      cursor: pointer;
+      z-index: 30;
+    }
+
+    #file-input, #hidden-canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app-container">
+  <!-- 閃光燈疊加層 -->
+  <img id="flashlight" class="overlay-img" style="display:none;" src="" alt="flash">
+
+  <!-- 1. 開場畫面 -->
+  <div id="screen-intro" class="screen active">
+    <img id="hello-img" class="clickable full-cover" src="" style="display: none;" alt="hello">
+  </div>
+
+  <!-- 2. Choose One 畫面 -->
+  <div id="screen-choose" class="screen">
+    <img class="clickable full-cover" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Choose_one.png" id="btn-to-menu" alt="choose_one">
+  </div>
+
+  <!-- 3. 選單畫面 -->
+  <div id="screen-menu" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png');">
+    <div class="frame-row">
+      <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame1.png" onclick="selectFrame(1)" alt="frame1">
+      <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame2.png" onclick="selectFrame(2)" alt="frame2">
+      <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame3.png" onclick="selectFrame(3)" alt="frame3">
+      <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame4.png" onclick="selectFrame(4)" alt="frame4">
+      <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame5.png" onclick="selectFrame(5)" alt="frame5">
+    </div>
+  </div>
+
+  <!-- 4. 確認樣式畫面 -->
+  <div id="screen-confirm" class="screen">
+    <img class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png" alt="menu bg">
+    <img id="confirm-overlay-img" class="bg-layer" src="" alt="confirm frame">
+    
+    <img class="btn-no clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/no.png" onclick="resetToMenu()" alt="no">
+    <img class="btn-yes clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/yes.png" onclick="goToModeSelect()" alt="yes">
+  </div>
+
+  <!-- 5. 模式選擇 -->
+  <div id="screen-mode" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/mode.png');">
+    <img class="btn-album clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Album_open.png" onclick="triggerPhotoUpload()" alt="相片">
+    <img class="btn-camera clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Camera_open.png" onclick="startCameraMode()" alt="拍照">
+  </div>
+
+  <!-- 6. 拍照畫面 -->
+  <div id="screen-shot" class="screen">
+    <video id="webcam-video" autoplay playsinline muted></video>
+    <img id="shot-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot1">
+    <div id="countdown-text"></div>
+  </div>
+
+  <!-- 7. 拍照 OK 畫面 -->
+  <div id="screen-ok" class="screen">
+    <video id="webcam-video-ok" autoplay playsinline muted></video>
+    <img id="ok-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok1">
+  </div>
+
+  <!-- 8. Loading 畫面 -->
+  <div id="screen-loading" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/loading.png');">
+  </div>
+
+  <!-- 9. 完成與下載畫面 -->
+  <div id="screen-thanks" class="screen">
+    <div id="thanks-container">
+      <img id="final-canvas-preview" src="" alt="600x1800 Photobooth">
+      <div class="btn-again-hotspot" onclick="resetApp()"></div>
+      <div class="btn-download-hotspot" onclick="downloadPhoto()"></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*" multiple onchange="handleFileSelect(event)">
+<canvas id="hidden-canvas"></canvas>
+
+<script>
+  const ASSETS = {
+    bg: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png',
+    thanksBg: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/thaks_bg.png',
+    againBtn: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Again.png',
+    downloadBtn: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Download.png',
+    hello: [
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/hello1.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/hello2.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/hello3.png'
+    ],
+    flashlight: [
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/flashlight1.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/flashlight2.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/flashlight3.png'
+    ],
+    frames: {
+      1: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame1.png',
+      2: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame2.png',
+      3: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame3.png',
+      4: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame4.png',
+      5: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame5.png'
+    },
+    confirms: {
+      1: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/confirm1.png',
+      2: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/confirm2.png',
+      3: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/confirm3.png',
+      4: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/confirm4.png',
+      5: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/confirm5.png'
+    },
+    shots: [
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot2.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot3.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot4.png'
+    ],
+    oks: [
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok2.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok3.png',
+      'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok4.png'
+    ]
+  };
+
+  const FRAME_CONFIG = {
+    frameX: 75,
+    frameY: 200,
+    frameW: 450,
+    frameH: 1100,
+    slots: [
+      { xPct: 0.05, yPct: 0.045, wPct: 0.90, hPct: 0.20 },
+      { xPct: 0.05, yPct: 0.270, wPct: 0.90, hPct: 0.20 },
+      { xPct: 0.05, yPct: 0.495, wPct: 0.90, hPct: 0.20 },
+      { xPct: 0.05, yPct: 0.720, wPct: 0.90, hPct: 0.20 }
+    ]
+  };
+
+  let currentHelloStep = 1;
+  let selectedFrameIndex = 1;
+  let userImages = [];
+  let cameraStream = null;
+  let currentShotCount = 0;
+
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById(screenId);
+    if (target) target.classList.add('active');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+  });
+
+  function initApp() {
+    currentHelloStep = 1;
+    selectedFrameIndex = 1;
+    userImages = [];
+    currentShotCount = 0;
+
+    const helloImg = document.getElementById('hello-img');
+    if (helloImg) {
+      helloImg.src = ASSETS.hello[0];
+      helloImg.style.display = 'none';
+    }
+
+    setTimeout(() => {
+      if (helloImg) helloImg.style.display = 'block';
+    }, 1000);
+
+    if (helloImg) {
+      helloImg.onclick = () => {
+        if (currentHelloStep < 3) {
+          currentHelloStep++;
+          helloImg.src = ASSETS.hello[currentHelloStep - 1];
+        } else if (currentHelloStep === 3) {
+          currentHelloStep++;
+          helloImg.style.display = 'none';
+          
+          const container = document.getElementById('app-container');
+          if (container) container.classList.add('bg-mode');
+
+          runFlashlightSequence(() => {
+            if (container) container.classList.remove('bg-mode');
+            showScreen('screen-choose');
+          });
+        }
+      };
+    }
+
+    const btnToMenu = document.getElementById('btn-to-menu');
+    if (btnToMenu) {
+      btnToMenu.onclick = () => showScreen('screen-menu');
+    }
+  }
+
+  function runFlashlightSequence(callback) {
+    const flashEl = document.getElementById('flashlight');
+    if (!flashEl) {
+      if (callback) callback();
+      return;
+    }
+
+    let flashIdx = 0;
+    flashEl.style.display = 'block';
+
+    const interval = setInterval(() => {
+      if (flashIdx < 3) {
+        flashEl.src = ASSETS.flashlight[flashIdx];
+        flashIdx++;
+      } else {
+        clearInterval(interval);
+        flashEl.style.display = 'none';
+        if (callback) callback();
+      }
+    }, 333);
+  }
+
+  function selectFrame(index) {
+    selectedFrameIndex = index;
+    const confirmImg = document.getElementById('confirm-overlay-img');
+    if (confirmImg) {
+      confirmImg.src = ASSETS.confirms[index];
+    }
+    showScreen('screen-confirm');
+  }
+
+  function resetToMenu() {
+    showScreen('screen-menu');
+  }
+
+  function goToModeSelect() {
+    showScreen('screen-mode');
+  }
+
+  function triggerPhotoUpload() {
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) fileInput.click();
+  }
+
+  function handleFileSelect(event) {
+    const files = event.target.files;
+    if (!files || files.length < 4) {
+      alert('請一次選擇 4 張照片喔！');
+      return;
+    }
+
+    userImages = [];
+    let loadedCount = 0;
+
+    for (let i = 0; i < 4; i++) {
+      const img = new Image();
+      img.onload = () => {
+        loadedCount++;
+        if (loadedCount === 4) {
+          processAndGenerateFinal();
+        }
+      };
+      img.onerror = () => {
+        alert(`第 ${i + 1} 張照片載入失敗！`);
+      };
+      img.src = URL.createObjectURL(files[i]);
+      userImages.push(img);
+    }
+  }
+
+  async function startCameraMode() {
+    showScreen('screen-shot');
+    userImages = [];
+    currentShotCount = 0;
+
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+
+      const videoShot = document.getElementById('webcam-video');
+      const videoOk = document.getElementById('webcam-video-ok');
+      
+      if (videoShot) videoShot.srcObject = cameraStream;
+      if (videoOk) videoOk.srcObject = cameraStream;
+
+      runShotSequence();
+    } catch (err) {
+      alert("無法開啟相機，請確認已授予權限！");
+      console.error("Camera Error:", err);
+    }
+  }
+
+  function runShotSequence() {
+    if (currentShotCount >= 4) {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+      processAndGenerateFinal();
+      return;
+    }
+
+    showScreen('screen-shot');
+    
+    const shotOverlay = document.getElementById('shot-overlay');
+    if (shotOverlay && ASSETS.shots[currentShotCount]) {
+      shotOverlay.src = ASSETS.shots[currentShotCount];
+    }
+
+    let countdown = 5;
+    const countEl = document.getElementById('countdown-text');
+    if (countEl) countEl.innerText = countdown;
+
+    const timer = setInterval(() => {
+      countdown--;
+      if (countdown > 0) {
+        if (countEl) countEl.innerText = countdown;
+      } else {
+        clearInterval(timer);
+        if (countEl) countEl.innerText = "";
+        
+        captureCameraPhoto();
+        
+        const okOverlay = document.getElementById('ok-overlay');
+        if (okOverlay && ASSETS.oks[currentShotCount]) {
+          okOverlay.src = ASSETS.oks[currentShotCount];
+        }
+        
+        showScreen('screen-ok');
+
+        setTimeout(() => {
+          currentShotCount++;
+          runShotSequence();
+        }, 1000);
+      }
+    }, 1000);
+  }
+
+  function captureCameraPhoto() {
+    const video = document.getElementById('webcam-video');
+    if (!video) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const img = new Image();
+    img.src = canvas.toDataURL('image/png');
+    userImages.push(img);
+  }
+
+  function processAndGenerateFinal() {
+    showScreen('screen-loading');
+
+    const canvas = document.getElementById('hidden-canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = 600;
+    canvas.height = 1800;
+
+    function loadImageSafely(src, retryCount = 2) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous"; // 修正跨域 Canvas 繪製問題
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+          if (retryCount > 0) {
+            const newSrc = src.includes('?') ? `${src}&t=${Date.now()}` : `${src}?t=${Date.now()}`;
+            setTimeout(() => {
+              loadImageSafely(newSrc, retryCount - 1).then(resolve);
+            }, 500);
+          } else {
+            console.warn("略過無法載入的圖片：", src);
+            resolve(null);
+          }
+        };
+        img.src = src;
+      });
+    }
+
+    Promise.all([
+      loadImageSafely(ASSETS.thanksBg),
+      loadImageSafely(ASSETS.frames[selectedFrameIndex]),
+      loadImageSafely(ASSETS.againBtn),
+      loadImageSafely(ASSETS.downloadBtn)
+    ]).then(([thanksBgImg, frameImg, againBtnImg, downloadBtnImg]) => {
+      try {
+        if (thanksBgImg) {
+          ctx.drawImage(thanksBgImg, 0, 0, 600, 1800);
+        } else {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 600, 1800);
+        }
+
+        const { frameX, frameY, frameW, frameH, slots } = FRAME_CONFIG;
+
+        userImages.forEach((img, i) => {
+          if (i < 4 && img && slots[i]) {
+            const slot = slots[i];
+            
+            let targetX = frameX + (frameW * slot.xPct);
+            let targetY = frameY + (frameH * slot.yPct);
+            let targetW = frameW * slot.wPct;
+            let targetH = frameH * slot.hPct;
+
+            const bleed = 2;
+            targetX -= bleed;
+            targetY -= bleed;
+            targetW += bleed * 2;
+            targetH += bleed * 2;
+
+            const targetRatio = targetW / targetH;
+            let srcW = img.width || 640;
+            let srcH = img.height || 480;
+            let srcX = 0;
+            let srcY = 0;
+
+            if (srcW / srcH > targetRatio) {
+              srcW = srcH * targetRatio;
+              srcX = (img.width - srcW) / 2;
+            } else {
+              srcH = srcW / targetRatio;
+              srcY = (img.height - srcH) / 2;
+            }
+
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, targetX, targetY, targetW, targetH);
+          }
+        });
+
+        if (frameImg) {
+          ctx.drawImage(frameImg, frameX, frameY, frameW, frameH);
+        }
+
+        if (againBtnImg) ctx.drawImage(againBtnImg, 60, 1450, 200, 150);
+        if (downloadBtnImg) ctx.drawImage(downloadBtnImg, 340, 1450, 200, 150);
+
+        setTimeout(() => {
+          try {
+            const finalDataUrl = canvas.toDataURL('image/png');
+            const previewImg = document.getElementById('final-canvas-preview');
+            if (previewImg) previewImg.src = finalDataUrl;
+            showScreen('screen-thanks');
+          } catch (canvasErr) {
+            console.error("Canvas 轉圖片失敗：", canvasErr);
+            alert("請透過網頁伺服器（如 GitHub Pages）執行此檔案！");
+          }
+        }, 1000);
+
+      } catch (e) {
+        console.error("合成過程出錯：", e);
+        alert("合成時發生錯誤，請重新嘗試！");
+        resetApp();
+      }
+    });
+  }
+
+  function downloadPhoto() {
+    const canvas = document.getElementById('hidden-canvas');
+    if (!canvas) return;
+
+    const link = document.createElement('a');
+    link.download = `photobooth_600x1800_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  function resetApp() {
+    showScreen('screen-intro');
+    initApp();
+  }
+</script>
+
+</body>
+</html>
