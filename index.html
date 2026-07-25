@@ -76,7 +76,7 @@
       transform: scale(0.92);
     }
 
-    /* 選單圖案與按鈕 */
+    /* 選單按鈕與佈局 */
     .frame-row {
       position: absolute;
       top: 50%;
@@ -100,7 +100,7 @@
     .btn-album { position: absolute; top: 25%; left: 8%; width: 38%; z-index: 20; }
     .btn-camera { position: absolute; top: 25%; right: 8%; width: 38%; z-index: 20; }
 
-    /* 📸 拍照畫面：強行將相機壓在底層 (z-index: 1)，PNG 壓在最頂層 (z-index: 10) */
+    /* 📸 拍照畫面：鏡頭預覽 (z-index: 1) 永遠在相框圖案 (z-index: 10) 的正後方 */
     .camera-container {
       position: relative;
       width: 100%;
@@ -143,7 +143,7 @@
       z-index: 20;
     }
 
-    /* 完成下載頁 */
+    /* 下載完成頁 */
     #screen-thanks {
       overflow-y: auto;
       background: #121212;
@@ -187,7 +187,7 @@
       cursor: pointer;
     }
 
-    #file-input, #hidden-canvas { display: none; }
+    #file-input { display: none; }
   </style>
 </head>
 <body>
@@ -231,7 +231,7 @@
     <img class="btn-camera clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Camera_open.png" onclick="startCameraMode()" alt="拍照">
   </div>
 
-  <!-- 6. 拍照畫面（Shot1~4） -->
+  <!-- 6. 拍照畫面 -->
   <div id="screen-shot" class="screen">
     <div class="camera-container">
       <video id="shot-camera-video" autoplay playsinline muted></video>
@@ -240,10 +240,9 @@
     </div>
   </div>
 
-  <!-- 7. OK 畫面（Ok1~4） -->
+  <!-- 7. OK 畫面 -->
   <div id="screen-ok" class="screen">
     <div class="camera-container">
-      <!-- 畫面靜止或繼續保持相機 -->
       <img id="ok-overlay" class="shot-frame-overlay" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok overlay">
     </div>
   </div>
@@ -264,7 +263,6 @@
 </div>
 
 <input type="file" id="file-input" accept="image/*" multiple onchange="handleFileSelect(event)">
-<canvas id="hidden-canvas"></canvas>
 
 <script>
   const ASSETS = {
@@ -306,22 +304,12 @@
     ]
   };
 
-  /* 
-     4 格相框的放置位置 (依據標準長條相框計算)
-     每一格寬高比約為 5:3，並加入邊界覆蓋 (Bleed) 確保 100% 絕不留白
-  */
-  const FRAME_SLOTS = [
-    { x: 0.12, y: 0.11, w: 0.76, h: 0.17 },
-    { x: 0.12, y: 0.285, w: 0.76, h: 0.17 },
-    { x: 0.12, y: 0.46, w: 0.76, h: 0.17 },
-    { x: 0.12, y: 0.635, w: 0.76, h: 0.17 }
-  ];
-
   let currentHelloStep = 1;
   let selectedFrameIndex = 1;
   let userImages = [];
   let cameraStream = null;
   let currentShotCount = 0;
+  let finalResultDataUrl = "";
 
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -389,7 +377,7 @@
   function goToModeSelect() { showScreen('screen-mode'); }
   function triggerPhotoUpload() { document.getElementById('file-input').click(); }
 
-  /* 上傳照片處理 */
+  /* 上傳相片 */
   function handleFileSelect(event) {
     const files = event.target.files;
     if (!files || files.length < 4) {
@@ -404,14 +392,14 @@
       const img = new Image();
       img.onload = () => {
         loadedCount++;
-        if (loadedCount === 4) processAndGenerateFinal();
+        if (loadedCount === 4) startGeneratingProcess();
       };
       img.src = URL.createObjectURL(files[i]);
       userImages.push(img);
     }
   }
 
-  /* 相機啟動 */
+  /* 相機模式 */
   async function startCameraMode() {
     userImages = [];
     currentShotCount = 0;
@@ -432,13 +420,12 @@
     }
   }
 
-  /* 拍照循環流程 */
   function runShotSequence() {
     if (currentShotCount >= 4) {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
       }
-      processAndGenerateFinal();
+      startGeneratingProcess();
       return;
     }
 
@@ -470,7 +457,6 @@
     }, 1000);
   }
 
-  /* 截圖相機畫面 */
   function captureCurrentFrame() {
     const video = document.getElementById('shot-camera-video');
     const canvas = document.createElement('canvas');
@@ -478,7 +464,6 @@
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
 
-    // 水平翻轉相機
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -488,86 +473,87 @@
     userImages.push(img);
   }
 
-  /* 核心 Canvas 滿格合成 (5:3 放大滿格, 絕留白) */
-  function processAndGenerateFinal() {
+  /* 開始生成最終圖片 */
+  function startGeneratingProcess() {
     showScreen('screen-loading');
 
-    const canvas = document.getElementById('hidden-canvas');
-    const ctx = canvas.getContext('2d');
-
-    function loadImage(src) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = src;
-      });
-    }
-
-    loadImage(ASSETS.frames[selectedFrameIndex]).then((frameImg) => {
-      if (!frameImg) {
-        alert("相框載入失敗");
-        return;
-      }
-
-      // 依據相框原圖真實寬高建立畫布，保證邊框 100% 不變形
-      canvas.width = frameImg.naturalWidth || frameImg.width;
-      canvas.height = frameImg.naturalHeight || frameImg.height;
-
-      const CW = canvas.width;
-      const CH = canvas.height;
-
-      // 1. 先繪製 4 張照片到底層 (以 5:3 滿格放大裁切，完全蓋住透明孔洞與周圍)
-      userImages.forEach((img, i) => {
-        if (i < 4 && img && FRAME_SLOTS[i]) {
-          const slot = FRAME_SLOTS[i];
-
-          // 放大計算 5:3 滿格 (Cover 模式)
-          const targetX = slot.x * CW;
-          const targetY = slot.y * CH;
-          const targetW = slot.w * CW;
-          const targetH = slot.h * CH;
-
-          // 5:3 比例裁切計算
-          const targetRatio = 5 / 3;
-          let srcW = img.width;
-          let srcH = img.height;
-          let srcX = 0;
-          let srcY = 0;
-
-          if (srcW / srcH > targetRatio) {
-            srcW = srcH * targetRatio;
-            srcX = (img.width - srcW) / 2;
-          } else {
-            srcH = srcW / targetRatio;
-            srcY = (img.height - srcH) / 2;
-          }
-
-          // 繪製照片，並邊界加寬 15px (Bleed) 確保 100% 絕留白
-          ctx.drawImage(
-            img, 
-            srcX, srcY, srcW, srcH, 
-            targetX - 10, targetY - 10, targetW + 20, targetH + 20
-          );
-        }
-      });
-
-      // 2. 將 PNG 相框圖蓋在最上層
-      ctx.drawImage(frameImg, 0, 0, CW, CH);
+    const frameImg = new Image();
+    frameImg.onload = () => {
+      // 呼叫需求 2 的核心合成邏輯
+      finalResultDataUrl = drawFinalPhotobooth(frameImg, userImages);
+      document.getElementById('final-canvas-preview').src = finalResultDataUrl;
 
       setTimeout(() => {
-        const finalUrl = canvas.toDataURL('image/png');
-        document.getElementById('final-canvas-preview').src = finalUrl;
         showScreen('screen-thanks');
       }, 500);
+    };
+    frameImg.src = ASSETS.frames[selectedFrameIndex];
+  }
+
+  /* 💡 需求 2 核心繪圖邏輯：5:3 滿格放大 + Bleed 出血延伸，100% 絕不留白 */
+  function drawFinalPhotobooth(frameImg, userPhotos) {
+    const canvas = document.createElement('canvas');
+    const CW = frameImg.naturalWidth || frameImg.width;
+    const CH = frameImg.naturalHeight || frameImg.height;
+
+    canvas.width = CW;
+    canvas.height = CH;
+
+    const ctx = canvas.getContext('2d');
+
+    // 相框 4 個透光區域的相對比例位置
+    const slots = [
+      { x: 0.10, y: 0.10, w: 0.80, h: 0.17 },
+      { x: 0.10, y: 0.28, w: 0.80, h: 0.17 },
+      { x: 0.10, y: 0.46, w: 0.80, h: 0.17 },
+      { x: 0.10, y: 0.64, w: 0.80, h: 0.17 }
+    ];
+
+    // 1. 底層繪製 4 張照片
+    userPhotos.forEach((img, index) => {
+      if (index >= 4 || !img) return;
+
+      const slot = slots[index];
+
+      const targetX = slot.x * CW;
+      const targetY = slot.y * CH;
+      const targetW = slot.w * CW;
+      const targetH = slot.h * CH;
+
+      // Cover 滿格裁切計算
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+      const scale = Math.max(targetW / imgW, targetH / imgH);
+
+      const cropW = targetW / scale;
+      const cropH = targetH / scale;
+      const cropX = (imgW - cropW) / 2;
+      const cropY = (imgH - cropH) / 2;
+
+      // 向外多延伸 15px 出血量 (Bleed)，強行消滅細縫空白
+      const bleed = 15;
+
+      ctx.drawImage(
+        img,
+        cropX, cropY, cropW, cropH,
+        targetX - bleed,
+        targetY - bleed,
+        targetW + (bleed * 2),
+        targetH + (bleed * 2)
+      );
     });
+
+    // 2. 最頂層蓋上 PNG 相框，把外擴的照片邊緣完美遮住
+    ctx.drawImage(frameImg, 0, 0, CW, CH);
+
+    return canvas.toDataURL('image/png');
   }
 
   function downloadPhoto() {
-    const canvas = document.getElementById('hidden-canvas');
+    if (!finalResultDataUrl) return;
     const link = document.createElement('a');
     link.download = `photobooth_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = finalResultDataUrl;
     link.click();
   }
 
