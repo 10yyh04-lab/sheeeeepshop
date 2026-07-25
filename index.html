@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>拍貼機 Photobooth</title>
   <style>
     * {
@@ -15,23 +15,27 @@
     body, html {
       width: 100%;
       height: 100%;
-      background-color: #121212;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: hidden;
+      background-color: #1a1a1a;
+      font-family: sans-serif;
     }
 
     #app-container {
       position: relative;
       width: 100vw;
       height: 100vh;
-      max-width: 480px;
-      max-height: 854px;
+      max-width: 540px;
+      max-height: 960px;
       background: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png') no-repeat center center / cover;
       overflow: hidden;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    #app-container.bg-mode {
+      background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png') !important;
     }
 
     .screen {
@@ -66,6 +70,18 @@
       height: 100%;
       object-fit: cover;
       pointer-events: none;
+      z-index: 5;
+    }
+
+    .overlay-img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      pointer-events: none;
+      z-index: 20;
     }
 
     .clickable {
@@ -76,7 +92,6 @@
       transform: scale(0.92);
     }
 
-    /* 選單按鈕與佈局 */
     .frame-row {
       position: absolute;
       top: 50%;
@@ -85,128 +100,129 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 6px;
-      width: 92%;
+      gap: 8px;
+      width: 90%;
     }
 
     .frame-item {
       width: 18%;
       height: auto;
-      transform: scale(0.85);
+      transform: scale(0.75);
     }
 
-    .btn-no { position: absolute; top: 5%; left: 6%; width: 20%; z-index: 20; }
-    .btn-yes { position: absolute; bottom: 3%; left: 36%; width: 15%; z-index: 20; }
-    .btn-album { position: absolute; top: 25%; left: 8%; width: 38%; z-index: 20; }
-    .btn-camera { position: absolute; top: 25%; right: 8%; width: 38%; z-index: 20; }
-
-    /* 📸 拍照畫面：鏡頭預覽 (z-index: 1) 永遠在相框圖案 (z-index: 10) 的正後方 */
-    .camera-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #000;
-    }
-
-    #shot-camera-video {
+    /* Confirm 畫面按鈕定位 */
+    .btn-no {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 5%;
+      left: 6%;
+      width: 20%;
+      z-index: 10;
+    }
+
+    .btn-yes {
+      position: absolute;
+      bottom: 3%;
+      left: 36%;
+      width: 15%;
+      z-index: 10;
+    }
+
+    /* Mode 畫面按鈕定位 */
+    .btn-album {
+      position: absolute;
+      top: 25%;
+      left: 8%;
+      width: 38%;
+      z-index: 10;
+    }
+
+    .btn-camera {
+      position: absolute;
+      top: 25%;
+      right: 8%;
+      width: 38%;
+      z-index: 10;
+    }
+
+    /* 相機視訊畫面（配合相框鏤空位置進行精準定位） */
+    #webcam-video, #webcam-video-ok {
+      position: absolute;
+      top: 14.5%;
+      left: 11.5%;
+      width: 77%;
+      height: 70.8%;
       object-fit: cover;
       transform: scaleX(-1);
-      z-index: 1; /* 恆在最後方 */
-    }
-
-    .shot-frame-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 10; /* 恆在最上方 */
-      pointer-events: none;
+      z-index: 1;
     }
 
     #countdown-text {
       position: absolute;
-      top: 50%;
+      top: 45%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-size: 110px;
-      color: #ffffff;
-      text-shadow: 0 0 20px rgba(0,0,0,0.9);
-      font-weight: 900;
-      z-index: 20;
+      font-size: 80px;
+      color: #fff;
+      text-shadow: 0 0 12px rgba(0,0,0,0.8);
+      font-weight: bold;
+      z-index: 10;
     }
 
-    /* 下載完成頁 */
-    #screen-thanks {
-      overflow-y: auto;
-      background: #121212;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px 0;
-    }
-
-    #screen-thanks.active {
-      display: flex;
-    }
-
-    .thanks-wrapper {
+    /* Thanks 畫面：呈現 600x1800 完整海報圖 */
+    #thanks-container {
       position: relative;
-      width: 85%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      width: 100%;
+      height: 100%;
     }
 
     #final-canvas-preview {
       width: 100%;
-      max-height: 70vh;
+      height: 100%;
       object-fit: contain;
-      border-radius: 8px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
     }
 
-    .action-buttons {
-      width: 100%;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      margin-top: 20px;
-    }
-
-    .action-btn {
-      width: 40%;
+    .btn-again-hotspot {
+      position: absolute;
+      bottom: 5%;
+      left: 10%;
+      width: 35%;
+      height: 12%;
       cursor: pointer;
+      z-index: 30;
     }
 
-    #file-input { display: none; }
+    .btn-download-hotspot {
+      position: absolute;
+      bottom: 5%;
+      right: 10%;
+      width: 35%;
+      height: 12%;
+      cursor: pointer;
+      z-index: 30;
+    }
+
+    #file-input, #hidden-canvas {
+      display: none;
+    }
   </style>
 </head>
 <body>
 
 <div id="app-container">
-  <!-- 閃光燈 -->
-  <img id="flashlight" class="bg-layer" style="display:none; z-index:99;" src="" alt="flash">
+  <!-- 閃光燈疊加層 -->
+  <img id="flashlight" class="overlay-img" style="display:none;" src="" alt="flash">
 
-  <!-- 1. 開場 -->
+  <!-- 1. 開場畫面 -->
   <div id="screen-intro" class="screen active">
     <img id="hello-img" class="clickable full-cover" src="" style="display: none;" alt="hello">
   </div>
 
-  <!-- 2. Choose One -->
+  <!-- 2. Choose One 畫面 -->
   <div id="screen-choose" class="screen">
     <img class="clickable full-cover" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Choose_one.png" id="btn-to-menu" alt="choose_one">
   </div>
 
-  <!-- 3. 選單 -->
+  <!-- 3. 選單畫面 -->
   <div id="screen-menu" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png');">
     <div class="frame-row">
       <img class="frame-item clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/frame1.png" onclick="selectFrame(1)" alt="frame1">
@@ -217,10 +233,11 @@
     </div>
   </div>
 
-  <!-- 4. 確認樣式 -->
+  <!-- 4. 確認樣式畫面 -->
   <div id="screen-confirm" class="screen">
     <img class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/menu.png" alt="menu bg">
     <img id="confirm-overlay-img" class="bg-layer" src="" alt="confirm frame">
+    
     <img class="btn-no clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/no.png" onclick="resetToMenu()" alt="no">
     <img class="btn-yes clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/yes.png" onclick="goToModeSelect()" alt="yes">
   </div>
@@ -233,39 +250,40 @@
 
   <!-- 6. 拍照畫面 -->
   <div id="screen-shot" class="screen">
-    <div class="camera-container">
-      <video id="shot-camera-video" autoplay playsinline muted></video>
-      <img id="shot-overlay" class="shot-frame-overlay" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot overlay">
-      <div id="countdown-text"></div>
-    </div>
+    <video id="webcam-video" autoplay playsinline muted></video>
+    <img id="shot-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot1">
+    <div id="countdown-text"></div>
   </div>
 
-  <!-- 7. OK 畫面 -->
+  <!-- 7. 拍照 OK 畫面 -->
   <div id="screen-ok" class="screen">
-    <div class="camera-container">
-      <img id="ok-overlay" class="shot-frame-overlay" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok overlay">
-    </div>
+    <video id="webcam-video-ok" autoplay playsinline muted></video>
+    <img id="ok-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Ok1.png" alt="ok1">
   </div>
 
-  <!-- 8. Loading -->
-  <div id="screen-loading" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/loading.png');"></div>
+  <!-- 8. Loading 畫面 -->
+  <div id="screen-loading" class="screen bg-cover" style="background-image: url('https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/loading.png');">
+  </div>
 
-  <!-- 9. 完成下載頁面 -->
+  <!-- 9. 完成與下載畫面 -->
   <div id="screen-thanks" class="screen">
-    <div class="thanks-wrapper">
-      <img id="final-canvas-preview" src="" alt="Photobooth Final Output">
-      <div class="action-buttons">
-        <img class="action-btn clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Again.png" onclick="resetApp()" alt="再試一次">
-        <img class="action-btn clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Download.png" onclick="downloadPhoto()" alt="下載照片">
-      </div>
+    <div id="thanks-container">
+      <img id="final-canvas-preview" src="" alt="600x1800 Photobooth">
+      <div class="btn-again-hotspot" onclick="resetApp()"></div>
+      <div class="btn-download-hotspot" onclick="downloadPhoto()"></div>
     </div>
   </div>
 </div>
 
 <input type="file" id="file-input" accept="image/*" multiple onchange="handleFileSelect(event)">
+<canvas id="hidden-canvas"></canvas>
 
 <script>
   const ASSETS = {
+    bg: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/bg.png',
+    thanksBg: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/thaks_bg.png',
+    againBtn: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Again.png',
+    downloadBtn: 'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Download.png',
     hello: [
       'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/hello1.png',
       'https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/hello2.png',
@@ -304,12 +322,31 @@
     ]
   };
 
+  /* 
+     可調參數區 (CONFIG)
+     可根據相框實際邊框大小彈性微調
+  */
+  const FRAME_CONFIG = {
+    // 600x1800 畫布上相框放置的位置與大小
+    frameX: 75,
+    frameY: 200,
+    frameW: 450,
+    frameH: 1100,
+
+    // 相框 4 個格子的比例座標（相對於相框左上角）
+    slots: [
+      { xPct: 0.05, yPct: 0.045, wPct: 0.90, hPct: 0.20 }, // 第一張圖格
+      { xPct: 0.05, yPct: 0.270, wPct: 0.90, hPct: 0.20 }, // 第二張圖格
+      { xPct: 0.05, yPct: 0.495, wPct: 0.90, hPct: 0.20 }, // 第三張圖格
+      { xPct: 0.05, yPct: 0.720, wPct: 0.90, hPct: 0.20 }  // 第四張圖格
+    ]
+  };
+
   let currentHelloStep = 1;
   let selectedFrameIndex = 1;
   let userImages = [];
   let cameraStream = null;
   let currentShotCount = 0;
-  let finalResultDataUrl = "";
 
   function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -331,8 +368,13 @@
     if (helloImg) {
       helloImg.src = ASSETS.hello[0];
       helloImg.style.display = 'none';
-      setTimeout(() => { helloImg.style.display = 'block'; }, 500);
+    }
 
+    setTimeout(() => {
+      if (helloImg) helloImg.style.display = 'block';
+    }, 1000);
+
+    if (helloImg) {
       helloImg.onclick = () => {
         if (currentHelloStep < 3) {
           currentHelloStep++;
@@ -340,18 +382,31 @@
         } else if (currentHelloStep === 3) {
           currentHelloStep++;
           helloImg.style.display = 'none';
+          
+          const container = document.getElementById('app-container');
+          if (container) container.classList.add('bg-mode');
+
           runFlashlightSequence(() => {
+            if (container) container.classList.remove('bg-mode');
             showScreen('screen-choose');
           });
         }
       };
     }
 
-    document.getElementById('btn-to-menu').onclick = () => showScreen('screen-menu');
+    const btnToMenu = document.getElementById('btn-to-menu');
+    if (btnToMenu) {
+      btnToMenu.onclick = () => showScreen('screen-menu');
+    }
   }
 
   function runFlashlightSequence(callback) {
     const flashEl = document.getElementById('flashlight');
+    if (!flashEl) {
+      if (callback) callback();
+      return;
+    }
+
     let flashIdx = 0;
     flashEl.style.display = 'block';
 
@@ -364,24 +419,35 @@
         flashEl.style.display = 'none';
         if (callback) callback();
       }
-    }, 250);
+    }, 333);
   }
 
   function selectFrame(index) {
     selectedFrameIndex = index;
-    document.getElementById('confirm-overlay-img').src = ASSETS.confirms[index];
+    const confirmImg = document.getElementById('confirm-overlay-img');
+    if (confirmImg) {
+      confirmImg.src = ASSETS.confirms[index];
+    }
     showScreen('screen-confirm');
   }
 
-  function resetToMenu() { showScreen('screen-menu'); }
-  function goToModeSelect() { showScreen('screen-mode'); }
-  function triggerPhotoUpload() { document.getElementById('file-input').click(); }
+  function resetToMenu() {
+    showScreen('screen-menu');
+  }
 
-  /* 上傳相片 */
+  function goToModeSelect() {
+    showScreen('screen-mode');
+  }
+
+  function triggerPhotoUpload() {
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) fileInput.click();
+  }
+
   function handleFileSelect(event) {
     const files = event.target.files;
     if (!files || files.length < 4) {
-      alert('請選取 4 張照片喔！');
+      alert('請一次選擇 4 張照片喔！');
       return;
     }
 
@@ -392,15 +458,20 @@
       const img = new Image();
       img.onload = () => {
         loadedCount++;
-        if (loadedCount === 4) startGeneratingProcess();
+        if (loadedCount === 4) {
+          processAndGenerateFinal();
+        }
+      };
+      img.onerror = () => {
+        alert(`第 ${i + 1} 張照片載入失敗！`);
       };
       img.src = URL.createObjectURL(files[i]);
       userImages.push(img);
     }
   }
 
-  /* 相機模式 */
   async function startCameraMode() {
+    showScreen('screen-shot');
     userImages = [];
     currentShotCount = 0;
 
@@ -410,13 +481,16 @@
         audio: false
       });
 
-      const video = document.getElementById('shot-camera-video');
-      video.srcObject = cameraStream;
+      const videoShot = document.getElementById('webcam-video');
+      const videoOk = document.getElementById('webcam-video-ok');
+      
+      if (videoShot) videoShot.srcObject = cameraStream;
+      if (videoOk) videoOk.srcObject = cameraStream;
 
       runShotSequence();
     } catch (err) {
-      alert("無法取得相機權限！");
-      console.error(err);
+      alert("無法開啟相機，請確認已授予權限！");
+      console.error("Camera Error:", err);
     }
   }
 
@@ -425,40 +499,52 @@
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
       }
-      startGeneratingProcess();
+      processAndGenerateFinal();
       return;
     }
 
     showScreen('screen-shot');
-    document.getElementById('shot-overlay').src = ASSETS.shots[currentShotCount];
+    
+    // 更新倒數時顯示的 Shot1 ~ Shot4 疊加層
+    const shotOverlay = document.getElementById('shot-overlay');
+    if (shotOverlay && ASSETS.shots[currentShotCount]) {
+      shotOverlay.src = ASSETS.shots[currentShotCount];
+    }
 
-    let countdown = 3;
+    let countdown = 5;
     const countEl = document.getElementById('countdown-text');
-    countEl.innerText = countdown;
+    if (countEl) countEl.innerText = countdown;
 
     const timer = setInterval(() => {
       countdown--;
       if (countdown > 0) {
-        countEl.innerText = countdown;
+        if (countEl) countEl.innerText = countdown;
       } else {
         clearInterval(timer);
-        countEl.innerText = "";
-
-        captureCurrentFrame();
-
-        document.getElementById('ok-overlay').src = ASSETS.oks[currentShotCount];
+        if (countEl) countEl.innerText = "";
+        
+        captureCameraPhoto();
+        
+        // 更新拍完照顯示的 Ok1 ~ Ok4 疊加層
+        const okOverlay = document.getElementById('ok-overlay');
+        if (okOverlay && ASSETS.oks[currentShotCount]) {
+          okOverlay.src = ASSETS.oks[currentShotCount];
+        }
+        
         showScreen('screen-ok');
 
         setTimeout(() => {
           currentShotCount++;
           runShotSequence();
-        }, 1200);
+        }, 1000);
       }
     }, 1000);
   }
 
-  function captureCurrentFrame() {
-    const video = document.getElementById('shot-camera-video');
+  function captureCameraPhoto() {
+    const video = document.getElementById('webcam-video');
+    if (!video) return;
+
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -473,87 +559,130 @@
     userImages.push(img);
   }
 
-  /* 開始生成最終圖片 */
-  function startGeneratingProcess() {
+  /* 
+     核心合成 logic：
+     先畫 4 張相片（填滿居中、微幅擴張防縫隙），再疊加相框圖層（覆蓋在照片上方）
+  */
+  function processAndGenerateFinal() {
     showScreen('screen-loading');
 
-    const frameImg = new Image();
-    frameImg.onload = () => {
-      // 呼叫需求 2 的核心合成邏輯
-      finalResultDataUrl = drawFinalPhotobooth(frameImg, userImages);
-      document.getElementById('final-canvas-preview').src = finalResultDataUrl;
-
-      setTimeout(() => {
-        showScreen('screen-thanks');
-      }, 500);
-    };
-    frameImg.src = ASSETS.frames[selectedFrameIndex];
-  }
-
-  /* 💡 需求 2 核心繪圖邏輯：5:3 滿格放大 + Bleed 出血延伸，100% 絕不留白 */
-  function drawFinalPhotobooth(frameImg, userPhotos) {
-    const canvas = document.createElement('canvas');
-    const CW = frameImg.naturalWidth || frameImg.width;
-    const CH = frameImg.naturalHeight || frameImg.height;
-
-    canvas.width = CW;
-    canvas.height = CH;
-
+    const canvas = document.getElementById('hidden-canvas');
     const ctx = canvas.getContext('2d');
 
-    // 相框 4 個透光區域的相對比例位置
-    const slots = [
-      { x: 0.10, y: 0.10, w: 0.80, h: 0.17 },
-      { x: 0.10, y: 0.28, w: 0.80, h: 0.17 },
-      { x: 0.10, y: 0.46, w: 0.80, h: 0.17 },
-      { x: 0.10, y: 0.64, w: 0.80, h: 0.17 }
-    ];
+    canvas.width = 600;
+    canvas.height = 1800;
 
-    // 1. 底層繪製 4 張照片
-    userPhotos.forEach((img, index) => {
-      if (index >= 4 || !img) return;
+    function loadImageSafely(src, retryCount = 2) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+          if (retryCount > 0) {
+            const newSrc = src.includes('?') ? `${src}&t=${Date.now()}` : `${src}?t=${Date.now()}`;
+            setTimeout(() => {
+              loadImageSafely(newSrc, retryCount - 1).then(resolve);
+            }, 500);
+          } else {
+            console.warn("略過無法載入的圖片：", src);
+            resolve(null);
+          }
+        };
+        img.src = src;
+      });
+    }
 
-      const slot = slots[index];
+    Promise.all([
+      loadImageSafely(ASSETS.thanksBg),
+      loadImageSafely(ASSETS.frames[selectedFrameIndex]),
+      loadImageSafely(ASSETS.againBtn),
+      loadImageSafely(ASSETS.downloadBtn)
+    ]).then(([thanksBgImg, frameImg, againBtnImg, downloadBtnImg]) => {
+      try {
+        // STEP 1. 繪製海報底圖 (600x1800)
+        if (thanksBgImg) {
+          ctx.drawImage(thanksBgImg, 0, 0, 600, 1800);
+        } else {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 600, 1800);
+        }
 
-      const targetX = slot.x * CW;
-      const targetY = slot.y * CH;
-      const targetW = slot.w * CW;
-      const targetH = slot.h * CH;
+        const { frameX, frameY, frameW, frameH, slots } = FRAME_CONFIG;
 
-      // Cover 滿格裁切計算
-      const imgW = img.naturalWidth || img.width;
-      const imgH = img.naturalHeight || img.height;
-      const scale = Math.max(targetW / imgW, targetH / imgH);
+        // STEP 2. 先繪製 4 張照片（放置於底層，並讓照片區域微幅放大 2 像素以填滿並完美襯在相框後）
+        userImages.forEach((img, i) => {
+          if (i < 4 && img && slots[i]) {
+            const slot = slots[i];
+            
+            // 基礎座標計算
+            let targetX = frameX + (frameW * slot.xPct);
+            let targetY = frameY + (frameH * slot.yPct);
+            let targetW = frameW * slot.wPct;
+            let targetH = frameH * slot.hPct;
 
-      const cropW = targetW / scale;
-      const cropH = targetH / scale;
-      const cropX = (imgW - cropW) / 2;
-      const cropY = (imgH - cropH) / 2;
+            // 微幅溢出 2px，防止邊緣透出白縫
+            const bleed = 2;
+            targetX -= bleed;
+            targetY -= bleed;
+            targetW += bleed * 2;
+            targetH += bleed * 2;
 
-      // 向外多延伸 15px 出血量 (Bleed)，強行消滅細縫空白
-      const bleed = 15;
+            // Object-fit: cover 裁切填滿邏輯
+            const targetRatio = targetW / targetH;
+            let srcW = img.width || 640;
+            let srcH = img.height || 480;
+            let srcX = 0;
+            let srcY = 0;
 
-      ctx.drawImage(
-        img,
-        cropX, cropY, cropW, cropH,
-        targetX - bleed,
-        targetY - bleed,
-        targetW + (bleed * 2),
-        targetH + (bleed * 2)
-      );
+            if (srcW / srcH > targetRatio) {
+              srcW = srcH * targetRatio;
+              srcX = (img.width - srcW) / 2;
+            } else {
+              srcH = srcW / targetRatio;
+              srcY = (img.height - srcH) / 2;
+            }
+
+            // 繪製照片
+            ctx.drawImage(img, srcX, srcY, srcW, srcH, targetX, targetY, targetW, targetH);
+          }
+        });
+
+        // STEP 3. 疊加相框圖層（覆蓋在照片上方，相框鏤空透明處即可露出底下照片）
+        if (frameImg) {
+          ctx.drawImage(frameImg, frameX, frameY, frameW, frameH);
+        }
+
+        // STEP 4. 繪製底部按鈕圖層
+        if (againBtnImg) ctx.drawImage(againBtnImg, 60, 1450, 200, 150);
+        if (downloadBtnImg) ctx.drawImage(downloadBtnImg, 340, 1450, 200, 150);
+
+        // STEP 5. 呈現最終 600x1800 海報 preview
+        setTimeout(() => {
+          try {
+            const finalDataUrl = canvas.toDataURL('image/png');
+            const previewImg = document.getElementById('final-canvas-preview');
+            if (previewImg) previewImg.src = finalDataUrl;
+            showScreen('screen-thanks');
+          } catch (canvasErr) {
+            console.error("Canvas 轉圖片失敗：", canvasErr);
+            alert("請透過網頁伺服器（如 GitHub Pages 或 Live Server）執行此檔案，避免瀏覽器安全限制！");
+          }
+        }, 1000);
+
+      } catch (e) {
+        console.error("合成過程出錯：", e);
+        alert("合成時發生錯誤，請重新嘗試！");
+        resetApp();
+      }
     });
-
-    // 2. 最頂層蓋上 PNG 相框，把外擴的照片邊緣完美遮住
-    ctx.drawImage(frameImg, 0, 0, CW, CH);
-
-    return canvas.toDataURL('image/png');
   }
 
   function downloadPhoto() {
-    if (!finalResultDataUrl) return;
+    const canvas = document.getElementById('hidden-canvas');
+    if (!canvas) return;
+
     const link = document.createElement('a');
-    link.download = `photobooth_${Date.now()}.png`;
-    link.href = finalResultDataUrl;
+    link.download = `photobooth_600x1800_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
     link.click();
   }
 
@@ -565,3 +694,4 @@
 
 </body>
 </html>
+
