@@ -88,7 +88,7 @@
       transform: scale(0.92);
     }
 
-    /* 選單頁面 */
+    /* 選單 */
     .frame-row {
       position: absolute;
       top: 50%;
@@ -113,31 +113,29 @@
     .btn-album { position: absolute; top: 25%; left: 8%; width: 38%; z-index: 20; }
     .btn-camera { position: absolute; top: 25%; right: 8%; width: 38%; z-index: 20; }
 
-    /* 相機畫面：襯在相框下方 */
-    #webcam-video {
+    /* 4 格鏡頭視窗：精準定位在相框透明處後方 */
+    .photo-slot {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
       object-fit: cover;
-      transform: scaleX(-1);
-      z-index: 1;
+      transform: scaleX(-1); /* 鏡像 */
+      z-index: 2;
+      display: none;
+      background: #000;
     }
 
     #countdown-text {
       position: absolute;
-      top: 40%;
+      top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-size: 100px;
+      font-size: 110px;
       color: #ffffff;
-      text-shadow: 0 0 20px rgba(0,0,0,0.8);
+      text-shadow: 0 0 20px rgba(0,0,0,0.9);
       font-weight: 900;
       z-index: 40;
     }
 
-    /* 最後一頁：可直向滑動、完整顯示長條海報 */
+    /* 9. 完成與下載頁面 */
     #screen-thanks {
       overflow-y: auto;
       background: #121212;
@@ -181,7 +179,7 @@
       cursor: pointer;
     }
 
-    #file-input, #hidden-canvas { display: none; }
+    #file-input, #hidden-canvas, #hidden-video { display: none; }
   </style>
 </head>
 <body>
@@ -225,9 +223,15 @@
     <img class="btn-camera clickable" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Camera_open.png" onclick="startCameraMode()" alt="拍照">
   </div>
 
-  <!-- 6. 拍照畫面 -->
+  <!-- 6. 拍照畫面（4 個鏡頭視窗襯在相框後方） -->
   <div id="screen-shot" class="screen">
-    <video id="webcam-video" autoplay playsinline muted></video>
+    <!-- 4 個即時預覽 / 定格視窗 -->
+    <video id="live-video" class="photo-slot" autoplay playsinline muted></video>
+    <img id="slot-cap-0" class="photo-slot">
+    <img id="slot-cap-1" class="photo-slot">
+    <img id="slot-cap-2" class="photo-slot">
+    <img id="slot-cap-3" class="photo-slot">
+
     <img id="shot-overlay" class="bg-layer" src="https://raw.githubusercontent.com/10yyh04-lab/photobooth-assets/refs/heads/main/Shot1.png" alt="shot">
     <div id="countdown-text"></div>
   </div>
@@ -295,16 +299,32 @@
     ]
   };
 
-  /* 根據選擇的相框，分配精準的孔洞位置 */
-  const FRAME_CONFIGS = {
-    // 預設 (1, 2 號框 - 棕色甜點)
+  /* 畫面上 4 個孔洞區域定位（百分比 %，自動適應手機螢幕） */
+  const SLOT_LAYOUTS = {
+    // 棕色甜點框 (1, 2, 5)
+    default: [
+      { left: '12.5%', top: '12.2%', width: '75%', height: '13.1%' },
+      { left: '12.5%', top: '27.5%', width: '75%', height: '13.1%' },
+      { left: '12.5%', top: '42.8%', width: '75%', height: '13.1%' },
+      { left: '12.5%', top: '58.1%', width: '75%', height: '13.1%' }
+    ],
+    // 藍色怪獸框 (3, 4)
+    monster: [
+      { left: '16.0%', top: '10.8%', width: '68%', height: '12.2%' },
+      { left: '16.0%', top: '24.7%', width: '68%', height: '12.2%' },
+      { left: '16.0%', top: '38.6%', width: '68%', height: '12.2%' },
+      { left: '16.0%', top: '52.5%', width: '68%', height: '12.2%' }
+    ]
+  };
+
+  /* 輸出 600x1800 Canvas 相對像素座標 */
+  const CANVAS_CONFIGS = {
     default: [
       { x: 75, y: 220, w: 450, h: 235 },
       { x: 75, y: 495, w: 450, h: 235 },
       { x: 75, y: 770, w: 450, h: 235 },
       { x: 75, y: 1045, w: 450, h: 235 }
     ],
-    // 藍色怪獸框 (3, 4 號框)
     monster: [
       { x: 96, y: 195, w: 408, h: 220 },
       { x: 96, y: 445, w: 408, h: 220 },
@@ -385,6 +405,7 @@
   function goToModeSelect() { showScreen('screen-mode'); }
   function triggerPhotoUpload() { document.getElementById('file-input').click(); }
 
+  /* 上傳相片模式 */
   function handleFileSelect(event) {
     const files = event.target.files;
     if (!files || files.length < 4) {
@@ -406,10 +427,17 @@
     }
   }
 
+  /* 相機拍攝模式 */
   async function startCameraMode() {
-    showScreen('screen-shot');
     userImages = [];
     currentShotCount = 0;
+
+    // 清空並隱藏定格截圖
+    for (let i = 0; i < 4; i++) {
+      const capImg = document.getElementById(`slot-cap-${i}`);
+      capImg.style.display = 'none';
+      capImg.src = '';
+    }
 
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -417,16 +445,17 @@
         audio: false
       });
 
-      const video = document.getElementById('webcam-video');
-      video.srcObject = cameraStream;
+      const liveVideo = document.getElementById('live-video');
+      liveVideo.srcObject = cameraStream;
 
       runShotSequence();
     } catch (err) {
-      alert("無法取得相機權限！");
+      alert("無法存取相機，請檢查權限設定！");
       console.error(err);
     }
   }
 
+  /* 4 連拍主要控制邏輯 */
   function runShotSequence() {
     if (currentShotCount >= 4) {
       if (cameraStream) {
@@ -437,6 +466,21 @@
     }
 
     showScreen('screen-shot');
+
+    // 依據相框選擇佈局
+    const layout = (selectedFrameIndex === 3 || selectedFrameIndex === 4)
+      ? SLOT_LAYOUTS.monster
+      : SLOT_LAYOUTS.default;
+
+    // 將可動鏡頭 (live-video) 移動到當前拍攝的那一格孔洞正後方
+    const currentPos = layout[currentShotCount];
+    const liveVideo = document.getElementById('live-video');
+    liveVideo.style.left = currentPos.left;
+    liveVideo.style.top = currentPos.top;
+    liveVideo.style.width = currentPos.width;
+    liveVideo.style.height = currentPos.height;
+    liveVideo.style.display = 'block';
+
     document.getElementById('shot-overlay').src = ASSETS.shots[currentShotCount];
 
     let countdown = 3;
@@ -451,8 +495,18 @@
         clearInterval(timer);
         countEl.innerText = "";
 
-        captureCurrentFrame();
+        // 拍照截圖並凍結在當前格子
+        const capImgEl = document.getElementById(`slot-cap-${currentShotCount}`);
+        const capDataUrl = captureCurrentFrame();
 
+        capImgEl.style.left = currentPos.left;
+        capImgEl.style.top = currentPos.top;
+        capImgEl.style.width = currentPos.width;
+        capImgEl.style.height = currentPos.height;
+        capImgEl.src = capDataUrl;
+        capImgEl.style.display = 'block';
+
+        // 顯示 OK 畫面
         document.getElementById('ok-overlay').src = ASSETS.oks[currentShotCount];
         showScreen('screen-ok');
 
@@ -464,22 +518,28 @@
     }, 1000);
   }
 
+  /* 擷取當前鏡頭 */
   function captureCurrentFrame() {
-    const video = document.getElementById('webcam-video');
+    const video = document.getElementById('live-video');
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
 
+    // 水平翻轉
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    const dataUrl = canvas.toDataURL('image/png');
     const img = new Image();
-    img.src = canvas.toDataURL('image/png');
+    img.src = dataUrl;
     userImages.push(img);
+
+    return dataUrl;
   }
 
+  /* 最終 Canvas 合成：相片襯底，相框蓋頂 */
   function processAndGenerateFinal() {
     showScreen('screen-loading');
 
@@ -489,14 +549,14 @@
     canvas.width = 600;
     canvas.height = 1800;
 
-    // 根據相框款式選取孔洞座標
-    const slots = (selectedFrameIndex === 3 || selectedFrameIndex === 4) 
-                  ? FRAME_CONFIGS.monster 
-                  : FRAME_CONFIGS.default;
+    const slots = (selectedFrameIndex === 3 || selectedFrameIndex === 4)
+      ? CANVAS_CONFIGS.monster
+      : CANVAS_CONFIGS.default;
 
     function loadImage(src) {
       return new Promise((resolve) => {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.onload = () => resolve(img);
         img.onerror = () => resolve(null);
         img.src = src;
@@ -504,11 +564,11 @@
     }
 
     loadImage(ASSETS.frames[selectedFrameIndex]).then((frameImg) => {
-      // 1. 純白底色 (不畫原本帶有圖案的背景檔)
+      // 1. 純白底色
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, 600, 1800);
 
-      // 2. 畫 4 張照片
+      // 2. 將 4 張照片 Cover 填滿進相對應孔洞（+4px 外擴防止白色縫隙）
       userImages.forEach((img, i) => {
         if (i < 4 && img && slots[i]) {
           const slot = slots[i];
@@ -536,16 +596,17 @@
         }
       });
 
-      // 3. 疊加相框 PNG
+      // 3. 疊加相框 PNG 圖層
       if (frameImg) {
         ctx.drawImage(frameImg, 0, 0, 600, 1800);
       }
 
+      // 產生最終圖
       setTimeout(() => {
         const finalUrl = canvas.toDataURL('image/png');
         document.getElementById('final-canvas-preview').src = finalUrl;
         showScreen('screen-thanks');
-      }, 600);
+      }, 500);
     });
   }
 
